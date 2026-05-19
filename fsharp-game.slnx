@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="Yacht.Tests/Yacht.Tests.fsproj" />
+  <Project Path="Yacht/Yacht.fsproj" />
+</Solution>
