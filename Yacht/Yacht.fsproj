@@ -6,8 +6,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Terminal.Gui" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Include="Scoring.fs" />
     <Compile Include="GameState.fs" />
+    <Compile Include="Ui/Scenes.fs" />
+    <Compile Include="Ui/MainMenuView.fs" />
+    <Compile Include="Ui/AppHost.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
 

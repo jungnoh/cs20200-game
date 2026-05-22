@@ -1,2 +1,6 @@
-﻿// For more information see https://aka.ms/fsharp-console-apps
-printfn "Hello from F#"
+﻿module Yacht.Program
+
+[<EntryPoint>]
+let main _argv =
+  Yacht.UI.AppHost.run ()
+  0
