@@ -14,6 +14,21 @@ type Category =
   | LargeStraight
   | Yacht
 
+  override this.ToString() =
+    match this with
+    | Aces -> "Aces"
+    | Deuces -> "Deuces"
+    | Threes -> "Threes"
+    | Fours -> "Fours"
+    | Fives -> "Fives"
+    | Sixes -> "Sixes"
+    | Choice -> "Choice"
+    | FourOfAKind -> "Four of a Kind"
+    | FullHouse -> "Full House"
+    | SmallStraight -> "Small Straight"
+    | LargeStraight -> "Large Straight"
+    | Yacht -> "Yacht"
+
 let allCategories =
   [ Aces
     Deuces

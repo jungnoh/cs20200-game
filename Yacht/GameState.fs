@@ -8,9 +8,19 @@ type PlayerSlot =
   | Player1
   | Player2
 
+  override this.ToString() =
+    match this with
+    | Player1 -> "Player 1"
+    | Player2 -> "Player 2"
+
 type TurnPhase =
   | AwaitingFirstRoll
   | Rolled of dice: int list * rollsUsed: int
+
+  override this.ToString() =
+    match this with
+    | AwaitingFirstRoll -> "Roll to start the turn"
+    | Rolled(_, rollsUsed) -> sprintf "Rolls used: %d/3" rollsUsed
 
 type GameError =
   | NoRollsLeft
@@ -19,11 +29,26 @@ type GameError =
   | GameAlreadyOver
   | InvalidKeepMask
 
+  override this.ToString() =
+    match this with
+    | NoRollsLeft -> "No rolls left. Record a category."
+    | NoDiceYet -> "Roll before recording a score."
+    | CategoryAlreadyFilled -> "That category is already filled."
+    | GameAlreadyOver -> "The game is already over."
+    | InvalidKeepMask -> "Select exactly five keep flags."
+
 type GameOutcome =
   | InProgress
   | Player1Wins
   | Player2Wins
   | Tie
+
+  override this.ToString() =
+    match this with
+    | InProgress -> "In progress"
+    | Player1Wins -> "Player 1 wins"
+    | Player2Wins -> "Player 2 wins"
+    | Tie -> "Tie"
 
 type GameState =
   { Player1: Scorecard
