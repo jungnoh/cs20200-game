@@ -15,6 +15,7 @@
   <ItemGroup>
     <Compile Include="ScoringTests.fs" />
     <Compile Include="GameStateTests.fs" />
+    <Compile Include="SceneTests.fs" />
   </ItemGroup>
 
   <ItemGroup>

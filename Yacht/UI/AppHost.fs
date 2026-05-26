@@ -27,11 +27,11 @@ let run () : unit =
       | None -> ()
 
       let v =
-        // TODO: Add Game scenes and wire them
         match currentScene with
         | MainMenu -> MainMenuView.create dispatchRef.Value
         | OnePlayer -> MainMenuView.create dispatchRef.Value
-        | TwoPlayer -> MainMenuView.create dispatchRef.Value
+        | TwoPlayer -> GameView.create GameView.TwoPlayer "Two-Player Mode" dispatchRef.Value
+        | GameOver final -> GameOverView.create final dispatchRef.Value
         | Exiting -> new View()
 
       root.Add v |> ignore
