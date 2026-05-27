@@ -103,6 +103,9 @@ module Scorecard =
 
   let isFilled (category: Category) (sc: Scorecard) : bool = Map.containsKey category sc.Scores
 
+  let unfilledCategories (sc: Scorecard) : Category list =
+    allCategories |> List.filter (fun c -> not (isFilled c sc))
+
   let isComplete (sc: Scorecard) : bool =
     allCategories |> List.forall (fun c -> isFilled c sc)
 
@@ -116,8 +119,8 @@ module Scorecard =
       Some { Scores = Map.add category score sc.Scores }
 
   let applicableCategories (dice: int list) (sc: Scorecard) : Category list =
-    allCategories
-    |> List.filter (fun c -> not (isFilled c sc))
+    sc
+    |> unfilledCategories
     |> List.filter (fun c -> c = Choice || scoreDice c dice > 0)
 
   let upperSubtotal (sc: Scorecard) : int =

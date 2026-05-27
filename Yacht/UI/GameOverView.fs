@@ -7,7 +7,8 @@ open Yacht.GameState
 open Yacht.Scoring
 open Yacht.UI.Scenes
 
-let create (state: GameState) (dispatch: Msg -> unit) : View =
+let create (state: GameState) (slotLabels: (string * string) option) (dispatch: Msg -> unit) : View =
+  let p1Name, p2Name = slotLabels |> Option.defaultValue ("Player 1", "Player 2")
   let frame = new FrameView()
   frame.Title <- "Game Over"
   frame.X <- Pos.Center()
@@ -20,15 +21,24 @@ let create (state: GameState) (dispatch: Msg -> unit) : View =
   header.Y <- 0
   header.Width <- Dim.Fill 2
 
+  let outcomeText =
+    match outcome state with
+    | Player1Wins -> sprintf "%s wins" p1Name
+    | Player2Wins -> sprintf "%s wins" p2Name
+    | Tie -> "Tie"
+    | InProgress -> "In progress"
+
   header.Text <-
     sprintf
-      "%s  —  Player 1: %d   |   Player 2: %d"
-      (string (outcome state))
+      "%s  —  %s: %d   |   %s: %d"
+      outcomeText
+      p1Name
       (Scorecard.total state.Player1)
+      p2Name
       (Scorecard.total state.Player2)
 
   let p1Card = new FrameView()
-  p1Card.Title <- "Player 1"
+  p1Card.Title <- p1Name
   p1Card.X <- 1
   p1Card.Y <- 2
   p1Card.Width <- Dim.Percent 48
@@ -43,7 +53,7 @@ let create (state: GameState) (dispatch: Msg -> unit) : View =
   p1Card.Add p1Label |> ignore
 
   let p2Card = new FrameView()
-  p2Card.Title <- "Player 2"
+  p2Card.Title <- p2Name
   p2Card.X <- Pos.Percent 50
   p2Card.Y <- 2
   p2Card.Width <- Dim.Percent 48

@@ -29,9 +29,10 @@ let run () : unit =
       let v =
         match currentScene with
         | MainMenu -> MainMenuView.create dispatchRef.Value
-        | OnePlayer -> MainMenuView.create dispatchRef.Value
+        | Difficulty -> DifficultyView.create dispatchRef.Value
+        | OnePlayer d -> GameView.create (GameView.SinglePlayer d) "Single-Player Mode" dispatchRef.Value
         | TwoPlayer -> GameView.create GameView.TwoPlayer "Two-Player Mode" dispatchRef.Value
-        | GameOver final -> GameOverView.create final dispatchRef.Value
+        | GameOver(final, labels) -> GameOverView.create final labels dispatchRef.Value
         | Exiting -> new View()
 
       root.Add v |> ignore

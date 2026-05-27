@@ -120,6 +120,28 @@ type ScorecardTests() =
     Assert.AreEqual<Scorecard option>(None, Scorecard.record Aces [ 1; 1; 1; 1; 1 ] sc)
 
   [<TestMethod>]
+  member _.``Unfilled categories includes categories that would score zero``() =
+    let sc = Scorecard.empty |> Scorecard.record Choice [ 1; 2; 3; 4; 5 ] |> Option.get
+    let result = Scorecard.unfilledCategories sc
+
+    Assert.IsFalse(List.contains Choice result)
+    Assert.IsTrue(List.contains Yacht result)
+    Assert.IsTrue(List.contains FourOfAKind result)
+
+  [<TestMethod>]
+  member _.``Unfilled categories preserves allCategories order``() =
+    let sc =
+      Scorecard.empty
+      |> Scorecard.record Aces [ 1; 1; 1; 1; 1 ]
+      |> Option.get
+      |> Scorecard.record Choice [ 1; 2; 3; 4; 5 ]
+      |> Option.get
+
+    let result = Scorecard.unfilledCategories sc
+    let expected = allCategories |> List.filter (fun c -> c <> Aces && c <> Choice)
+    Assert.AreEqual<Category list>(expected, result)
+
+  [<TestMethod>]
   member _.``Filling all 12 categories makes scorecard complete``() =
     let sc =
       allCategories

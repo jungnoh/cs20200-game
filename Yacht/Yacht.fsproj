@@ -11,11 +11,14 @@
 
   <ItemGroup>
     <Compile Include="Scoring.fs" />
+    <Compile Include="Difficulty.fs" />
     <Compile Include="GameState.fs" />
+    <Compile Include="Bot.fs" />
     <Compile Include="UI/ScorecardFormat.fs" />
     <Compile Include="UI/Scenes.fs" />
     <Compile Include="UI/GameView.fs" />
     <Compile Include="UI/MainMenuView.fs" />
+    <Compile Include="Ui/DifficultyView.fs" />
     <Compile Include="UI/GameOverView.fs" />
     <Compile Include="UI/AppHost.fs" />
     <Compile Include="Program.fs" />

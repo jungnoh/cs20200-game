@@ -1,28 +1,34 @@
 module Yacht.UI.Scenes
 
+open Yacht.Difficulty
 open Yacht.GameState
 
 type Scene =
   | MainMenu
-  | OnePlayer
+  | Difficulty
+  | OnePlayer of Difficulty
   | TwoPlayer
-  | GameOver of GameState
+  | GameOver of state: GameState * slotLabels: (string * string) option
   | Exiting
 
 type Msg =
   | SelectOne
   | SelectTwo
   | SelectExit
-  | ShowGameOver of GameState
+  | SelectDifficulty of Difficulty
   | BackToMenu
+  | ShowGameOver of state: GameState * slotLabels: (string * string) option
 
 let transition (scene: Scene) (msg: Msg) : Scene =
   match scene, msg with
-  | MainMenu, SelectOne -> OnePlayer
+  | MainMenu, SelectOne -> Difficulty
   | MainMenu, SelectTwo -> TwoPlayer
   | MainMenu, SelectExit -> Exiting
-  | OnePlayer, BackToMenu -> MainMenu
+  | Difficulty, SelectDifficulty d -> OnePlayer d
+  | Difficulty, BackToMenu -> MainMenu
+  | OnePlayer _, BackToMenu -> MainMenu
+  | OnePlayer _, ShowGameOver(final, labels) -> GameOver(final, labels)
   | TwoPlayer, BackToMenu -> MainMenu
-  | TwoPlayer, ShowGameOver final -> GameOver final
+  | TwoPlayer, ShowGameOver(final, labels) -> GameOver(final, labels)
   | GameOver _, BackToMenu -> MainMenu
   | _ -> scene
