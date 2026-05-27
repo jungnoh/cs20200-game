@@ -18,9 +18,48 @@ type PlayerMode =
   | SinglePlayer of Difficulty
   | TwoPlayer
 
+type GameControlsState =
+  { CanRoll: bool
+    CanChooseDice: bool
+    CanRecordCategory: bool }
+
+type FocusTarget =
+  | RollButton
+  | DiceList
+  | CategoryList
+  | BackButton
+
 let private scorecardWidth = 25
 let private categorySelectorWidth = 18
 let private fullScorecardRows = 17
+
+let controlState (controlsLocked: bool) (state: GameState) : GameControlsState =
+  if controlsLocked then
+    { CanRoll = false
+      CanChooseDice = false
+      CanRecordCategory = false }
+  else
+    match state.Phase with
+    | AwaitingFirstRoll ->
+      { CanRoll = true
+        CanChooseDice = false
+        CanRecordCategory = false }
+    | Rolled(_, rollsUsed) ->
+      { CanRoll = rollsUsed < 3
+        CanChooseDice = rollsUsed < 3
+        CanRecordCategory = true }
+
+let preferredFocusTarget (controls: GameControlsState) : FocusTarget =
+  if controls.CanRecordCategory && not controls.CanRoll then
+    CategoryList
+  elif controls.CanChooseDice then
+    DiceList
+  elif controls.CanRoll then
+    RollButton
+  elif controls.CanRecordCategory then
+    CategoryList
+  else
+    BackButton
 
 let private diceIn state =
   match state.Phase with
@@ -149,6 +188,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   botLog.Width <- Dim.Fill 2
   botLog.Height <- Dim.Fill 3
   botLog.SetSource botLogItems
+  botLog.CanFocus <- false
 
   let backButton = new Button()
   backButton.Text <- "Back"
@@ -160,6 +200,29 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       label.Frame.Height
     else
       fullScorecardRows
+
+  let setViewActive active (view: View) =
+    view.Enabled <- active
+    view.CanFocus <- active
+
+  let focusTarget target =
+    match target with
+    | RollButton -> rollButton.SetFocus() |> ignore
+    | DiceList -> diceList.SetFocus() |> ignore
+    | CategoryList -> categoryList.SetFocus() |> ignore
+    | BackButton -> backButton.SetFocus() |> ignore
+
+  let isInactiveFocus (view: View) =
+    view.HasFocus && (not view.Enabled || not view.CanFocus)
+
+  let refreshControlState () =
+    let controls = controlState controlsLocked state
+    rollButton.Enabled <- controls.CanRoll
+    diceList |> setViewActive controls.CanChooseDice
+    categoryList |> setViewActive controls.CanRecordCategory
+
+    if isInactiveFocus rollButton || isInactiveFocus diceList || isInactiveFocus categoryList then
+      focusTarget (preferredFocusTarget controls)
 
   let refresh () =
     status.Text <- statusFor mode state
@@ -207,14 +270,17 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     if categoryItems.Count > 0 && not categoryList.SelectedItem.HasValue then
       categoryList.SelectedItem <- Nullable 0
 
+    refreshControlState ()
+
   p1Label.FrameChanged.Add(fun _ -> refresh ())
   p2Label.FrameChanged.Add(fun _ -> refresh ())
 
   let lockUi locked =
     controlsLocked <- locked
-    rollButton.Enabled <- not locked
-    diceList.Enabled <- not locked
-    categoryList.Enabled <- not locked
+    refreshControlState ()
+
+    if not locked then
+      controlState controlsLocked state |> preferredFocusTarget |> focusTarget
 
   let appendLog (line: string) =
     botLogItems.Add line
@@ -290,52 +356,57 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       scheduleStep d
 
   let doRoll () =
-    let mask =
-      match state.Phase with
-      | AwaitingFirstRoll -> []
-      | Rolled _ -> keepMask
+    let controls = controlState controlsLocked state
 
-    match roll roller mask state with
-    | Ok next ->
-      state <- next
-      refresh ()
-    | Error error -> status.Text <- string error
+    if controls.CanRoll then
+      let mask =
+        match state.Phase with
+        | AwaitingFirstRoll -> []
+        | Rolled _ -> keepMask
 
-  let doToggleKeep () =
-    if not controlsLocked then
-      match diceIn state with
-      | None -> status.Text <- "Roll before keeping dice."
-      | Some _ ->
-        let idx =
-          if diceList.SelectedItem.HasValue then
-            diceList.SelectedItem.Value
-          else
-            0
-
-        keepMask <- keepMask |> List.mapi (fun i keep -> if i = idx then not keep else keep)
-        refresh ()
-
-  let doRecord () =
-    let idx =
-      if categoryList.SelectedItem.HasValue then
-        categoryList.SelectedItem.Value
-      else
-        0
-
-    if idx >= 0 && idx < List.length categoryChoices then
-      match record categoryChoices[idx] state with
+      match roll roller mask state with
       | Ok next ->
         state <- next
-        keepMask <- List.replicate 5 false
         refresh ()
-
-        if isGameOver state then
-          dispatch (ShowGameOver(state, labelsFor mode))
-        else
-          match mode with
-          | SinglePlayer _ when state.Current = Player2 -> startBotTurn ()
-          | _ -> ()
       | Error error -> status.Text <- string error
+
+  let doToggleKeep () =
+    let controls = controlState controlsLocked state
+
+    if controls.CanChooseDice then
+      let idx =
+        if diceList.SelectedItem.HasValue then
+          diceList.SelectedItem.Value
+        else
+          0
+
+      keepMask <- keepMask |> List.mapi (fun i keep -> if i = idx then not keep else keep)
+      refresh ()
+
+  let doRecord () =
+    let controls = controlState controlsLocked state
+
+    if controls.CanRecordCategory then
+      let idx =
+        if categoryList.SelectedItem.HasValue then
+          categoryList.SelectedItem.Value
+        else
+          0
+
+      if idx >= 0 && idx < List.length categoryChoices then
+        match record categoryChoices[idx] state with
+        | Ok next ->
+          state <- next
+          keepMask <- List.replicate 5 false
+          refresh ()
+
+          if isGameOver state then
+            dispatch (ShowGameOver(state, labelsFor mode))
+          else
+            match mode with
+            | SinglePlayer _ when state.Current = Player2 -> startBotTurn ()
+            | _ -> ()
+        | Error error -> status.Text <- string error
 
   rollButton.Accepting.Add(fun _ -> doRoll ())
 
@@ -356,9 +427,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       key.Handled <- true
       doToggleKeep ()
 
-  frame.KeyDown.Add handleSpace
   diceList.KeyDown.Add handleSpace
-  categoryList.KeyDown.Add handleSpace
 
   frame.Add status |> ignore
   frame.Add p1Card |> ignore
