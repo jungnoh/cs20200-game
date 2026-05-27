@@ -17,6 +17,8 @@
     <Compile Include="GameStateTests.fs" />
     <Compile Include="SceneTests.fs" />
     <Compile Include="BotTests.fs" />
+    <Compile Include="ScorecardFormatTests.fs" />
+    <Compile Include="Program.fs" />
   </ItemGroup>
 
   <ItemGroup>

@@ -19,6 +19,8 @@ type PlayerMode =
   | TwoPlayer
 
 let private scorecardWidth = 25
+let private categorySelectorWidth = 18
+let private fullScorecardRows = 17
 
 let private diceIn state =
   match state.Phase with
@@ -79,17 +81,12 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   let mutable controlsLocked = false
   let mutable cancelled = false
 
-  let isSingle =
-    match mode with
-    | SinglePlayer _ -> true
-    | TwoPlayer -> false
-
   let frame = new FrameView()
   frame.Title <- title
-  frame.X <- Pos.Center()
-  frame.Y <- Pos.Center()
-  frame.Width <- Dim.Percent 90
-  frame.Height <- Dim.Percent 85
+  frame.X <- 0
+  frame.Y <- 0
+  frame.Width <- Dim.Fill 0
+  frame.Height <- Dim.Fill 0
 
   let status = new Label()
   status.X <- 1
@@ -101,7 +98,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   p1Card.X <- 1
   p1Card.Y <- 2
   p1Card.Width <- Dim.Absolute scorecardWidth
-  p1Card.Height <- Dim.Fill 10
+  p1Card.Height <- Dim.Fill 3
 
   let p1Label = new Label()
   p1Label.X <- 1
@@ -115,7 +112,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   p2Card.X <- Pos.Right p1Card + Pos.op_Implicit 1
   p2Card.Y <- 2
   p2Card.Width <- Dim.Absolute scorecardWidth
-  p2Card.Height <- Dim.Fill 10
+  p2Card.Height <- Dim.Fill 3
 
   let p2Label = new Label()
   p2Label.X <- 1
@@ -126,31 +123,31 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
 
   let diceItems = ObservableCollection<string>()
   let diceList = new ListView()
-  diceList.X <- 1
-  diceList.Y <- Pos.AnchorEnd 9
-  diceList.Width <- Dim.Percent 35
+  let categoryItems = ObservableCollection<string>()
+  let categoryList = new ListView()
+  categoryList.X <- Pos.Right p2Card + Pos.op_Implicit 1
+  categoryList.Y <- 2
+  categoryList.Width <- Dim.Absolute categorySelectorWidth
+  categoryList.Height <- Dim.Fill 3
+  categoryList.SetSource categoryItems
+
+  diceList.X <- Pos.Right categoryList + Pos.op_Implicit 1
+  diceList.Y <- 2
+  diceList.Width <- Dim.Fill 2
   diceList.Height <- 7
   diceList.SetSource diceItems
 
-  let categoryItems = ObservableCollection<string>()
-  let categoryList = new ListView()
-  categoryList.X <- Pos.Percent 40
-  categoryList.Y <- Pos.AnchorEnd 9
-  categoryList.Width <- if isSingle then Dim.Percent 30 else Dim.Fill 2
-  categoryList.Height <- 7
-  categoryList.SetSource categoryItems
-
   let rollButton = new Button()
   rollButton.Text <- "Roll (Enter)"
-  rollButton.X <- 1
+  rollButton.X <- Pos.Right categoryList + Pos.op_Implicit 1
   rollButton.Y <- Pos.AnchorEnd 2
 
   let botLogItems = ObservableCollection<string>()
   let botLog = new ListView()
-  botLog.X <- Pos.Percent 70
-  botLog.Y <- Pos.AnchorEnd 9
+  botLog.X <- Pos.Right categoryList + Pos.op_Implicit 1
+  botLog.Y <- Pos.Bottom diceList + Pos.op_Implicit 1
   botLog.Width <- Dim.Fill 2
-  botLog.Height <- 7
+  botLog.Height <- Dim.Fill 3
   botLog.SetSource botLogItems
 
   let backButton = new Button()
@@ -158,11 +155,17 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   backButton.X <- Pos.AnchorEnd 8
   backButton.Y <- Pos.AnchorEnd 2
 
+  let scorecardRows (label: Label) =
+    if label.Frame.Height > 0 then
+      label.Frame.Height
+    else
+      fullScorecardRows
+
   let refresh () =
     status.Text <- statusFor mode state
 
-    p1Label.Text <- ScorecardFormat.format state.Player1
-    p2Label.Text <- ScorecardFormat.format state.Player2
+    p1Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p1Label) state.Player1
+    p2Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p2Label) state.Player2
 
     p1Card.Title <- cardTitle mode Player1 state.Current
     p2Card.Title <- cardTitle mode Player2 state.Current
@@ -199,10 +202,13 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
         | None -> "-"
         | Some(dice, _) -> string (scoreDice category dice)
 
-      categoryItems.Add(sprintf "%-16s %s" (string category) value))
+      categoryItems.Add(sprintf "%-14s %2s" (string category) value))
 
     if categoryItems.Count > 0 && not categoryList.SelectedItem.HasValue then
       categoryList.SelectedItem <- Nullable 0
+
+  p1Label.FrameChanged.Add(fun _ -> refresh ())
+  p2Label.FrameChanged.Add(fun _ -> refresh ())
 
   let lockUi locked =
     controlsLocked <- locked
@@ -360,9 +366,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   frame.Add diceList |> ignore
   frame.Add categoryList |> ignore
 
-  if isSingle then
-    frame.Add botLog |> ignore
-
+  frame.Add botLog |> ignore
   frame.Add rollButton |> ignore
   frame.Add backButton |> ignore
 
