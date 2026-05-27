@@ -18,7 +18,7 @@
     <Compile Include="UI/Scenes.fs" />
     <Compile Include="UI/GameView.fs" />
     <Compile Include="UI/MainMenuView.fs" />
-    <Compile Include="Ui/DifficultyView.fs" />
+    <Compile Include="UI/DifficultyView.fs" />
     <Compile Include="UI/GameOverView.fs" />
     <Compile Include="UI/AppHost.fs" />
     <Compile Include="Program.fs" />
