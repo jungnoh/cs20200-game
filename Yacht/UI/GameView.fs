@@ -61,6 +61,11 @@ let preferredFocusTarget (controls: GameControlsState) : FocusTarget =
   else
     BackButton
 
+let shakeFrame (roller: unit -> int) (keepMask: bool list) (currentDice: int list) : int list =
+  List.init 5 (fun i ->
+    let kept = i < List.length keepMask && keepMask[i]
+    if kept then currentDice[i] else roller ())
+
 let private diceIn state =
   match state.Phase with
   | AwaitingFirstRoll -> None
@@ -119,6 +124,11 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   let mutable categoryChoices: Category list = allCategories
   let mutable controlsLocked = false
   let mutable cancelled = false
+  let mutable animating = false
+  let mutable throwing = false
+  let mutable animFaces = List.replicate 5 0
+  let mutable animTilt = DiceArt.Center
+  let mutable animLabel = "shake"
 
   let frame = new FrameView()
   frame.Title <- title
@@ -190,6 +200,14 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   botLog.SetSource botLogItems
   botLog.CanFocus <- false
 
+  let animStage = new Label()
+  animStage.X <- Pos.Right categoryList + Pos.op_Implicit 1
+  animStage.Y <- 2
+  animStage.Width <- Dim.Fill 2
+  animStage.Height <- Dim.Absolute 10
+  animStage.Visible <- false
+  animStage.CanFocus <- false
+
   let backButton = new Button()
   backButton.Text <- "Back"
   backButton.X <- Pos.AnchorEnd 8
@@ -217,15 +235,30 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
 
   let refreshControlState () =
     let controls = controlState controlsLocked state
-    rollButton.Enabled <- controls.CanRoll
+    rollButton.Enabled <- controls.CanRoll || animating
     diceList |> setViewActive controls.CanChooseDice
-    categoryList |> setViewActive controls.CanRecordCategory
+    categoryList |> setViewActive (controls.CanRecordCategory && not animating)
 
-    if isInactiveFocus rollButton || isInactiveFocus diceList || isInactiveFocus categoryList then
+    if
+      isInactiveFocus rollButton
+      || isInactiveFocus diceList
+      || isInactiveFocus categoryList
+    then
       focusTarget (preferredFocusTarget controls)
 
   let refresh () =
-    status.Text <- statusFor mode state
+    if animating then
+      let hint =
+        if throwing then
+          "Rolling the dice…"
+        else
+          "Shake! ← / → to roll, Enter to throw, Esc to cancel."
+
+      status.Text <- hint
+      rollButton.Text <- "Throw (Enter)"
+    else
+      status.Text <- statusFor mode state
+      rollButton.Text <- "Roll (Enter)"
 
     p1Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p1Label) state.Player1
     p2Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p2Label) state.Player2
@@ -233,27 +266,35 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     p1Card.Title <- cardTitle mode Player1 state.Current
     p2Card.Title <- cardTitle mode Player2 state.Current
 
-    let prevDieIdx =
-      if diceList.SelectedItem.HasValue then
-        diceList.SelectedItem.Value
-      else
-        0
+    if animating then
+      animStage.Text <- DiceArt.renderCup animFaces keepMask animTilt animLabel
+      animStage.Visible <- true
+      diceList.Visible <- false
+    else
+      animStage.Visible <- false
+      diceList.Visible <- true
 
-    diceItems.Clear()
+      let prevDieIdx =
+        if diceList.SelectedItem.HasValue then
+          diceList.SelectedItem.Value
+        else
+          0
 
-    match diceIn state with
-    | None ->
-      for i in 1..5 do
-        diceItems.Add(sprintf "[ ] Die %d: -" i)
-    | Some(dice, _) ->
-      dice
-      |> List.iteri (fun i die ->
-        let mark = if keepMask[i] then "x" else " "
-        diceItems.Add(sprintf "[%s] Die %d: %d" mark (i + 1) die))
+      diceItems.Clear()
 
-    if diceItems.Count > 0 then
-      let idx = min prevDieIdx (diceItems.Count - 1)
-      diceList.SelectedItem <- Nullable idx
+      match diceIn state with
+      | None ->
+        for i in 1..5 do
+          diceItems.Add(sprintf "[ ] Die %d: -" i)
+      | Some(dice, _) ->
+        dice
+        |> List.iteri (fun i die ->
+          let mark = if keepMask[i] then "x" else " "
+          diceItems.Add(sprintf "[%s] Die %d: %d" mark (i + 1) die))
+
+      if diceItems.Count > 0 then
+        let idx = min prevDieIdx (diceItems.Count - 1)
+        diceList.SelectedItem <- Nullable idx
 
     categoryChoices <- Scorecard.unfilledCategories (currentScorecard state)
     categoryItems.Clear()
@@ -355,10 +396,74 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       lockUi true
       scheduleStep d
 
-  let doRoll () =
+  let currentDiceOrPlaceholder () =
+    match diceIn state with
+    | Some(dice, _) -> dice
+    | None -> List.replicate 5 0
+
+  let beginShake (tilt: DiceArt.Tilt) =
     let controls = controlState controlsLocked state
 
-    if controls.CanRoll then
+    if controls.CanRoll && not animating then
+      animating <- true
+      throwing <- false
+      animTilt <- tilt
+      animLabel <- "shake"
+      animFaces <- shakeFrame roller keepMask (currentDiceOrPlaceholder ())
+      rollButton.SetFocus() |> ignore
+      refresh ()
+
+  let shakeOnce (tilt: DiceArt.Tilt) =
+    if animating && not throwing then
+      animTilt <- tilt
+      animLabel <- "shake"
+      animFaces <- shakeFrame roller keepMask (currentDiceOrPlaceholder ())
+      refresh ()
+
+  let cancelShake () =
+    if animating && not throwing then
+      animating <- false
+      refresh ()
+
+  let finishThrow () =
+    animating <- false
+    throwing <- false
+    refresh ()
+
+  let rec stepThrow (frameIdx: int) (finalFaces: int list) =
+    if frameIdx >= 6 then
+      animFaces <- finalFaces
+      animTilt <- DiceArt.Center
+      animLabel <- "landed!"
+      refresh ()
+
+      Application.AddTimeout(
+        TimeSpan.FromMilliseconds 350.0,
+        fun () ->
+          if not cancelled then
+            finishThrow ()
+
+          false
+      )
+      |> ignore
+    else
+      animFaces <- shakeFrame roller keepMask (currentDiceOrPlaceholder ())
+      animTilt <- (if frameIdx % 2 = 0 then DiceArt.Left else DiceArt.Right)
+      animLabel <- "rolling"
+      refresh ()
+
+      Application.AddTimeout(
+        TimeSpan.FromMilliseconds 80.0,
+        fun () ->
+          if not cancelled then
+            stepThrow (frameIdx + 1) finalFaces
+
+          false
+      )
+      |> ignore
+
+  let throwDice () =
+    if animating && not throwing then
       let mask =
         match state.Phase with
         | AwaitingFirstRoll -> []
@@ -366,14 +471,28 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
 
       match roll roller mask state with
       | Ok next ->
+        let finalFaces =
+          match next.Phase with
+          | Rolled(dice, _) -> dice
+          | AwaitingFirstRoll -> animFaces
+
         state <- next
+        throwing <- true
+        stepThrow 0 finalFaces
+      | Error error ->
+        animating <- false
         refresh ()
-      | Error error -> status.Text <- string error
+        status.Text <- string error
+
+  let doRoll () =
+    if throwing then ()
+    elif animating then throwDice ()
+    else beginShake DiceArt.Center
 
   let doToggleKeep () =
     let controls = controlState controlsLocked state
 
-    if controls.CanChooseDice then
+    if controls.CanChooseDice && not animating then
       let idx =
         if diceList.SelectedItem.HasValue then
           diceList.SelectedItem.Value
@@ -386,7 +505,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   let doRecord () =
     let controls = controlState controlsLocked state
 
-    if controls.CanRecordCategory then
+    if controls.CanRecordCategory && not animating then
       let idx =
         if categoryList.SelectedItem.HasValue then
           categoryList.SelectedItem.Value
@@ -423,11 +542,36 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     dispatch BackToMenu)
 
   let handleSpace (key: Key) =
-    if key.Equals Key.Space then
+    if key.Equals Key.Space && not animating then
       key.Handled <- true
       doToggleKeep ()
 
+  let handleRollKeys (key: Key) =
+    let controls = controlState controlsLocked state
+    let canShake = (animating || controls.CanRoll) && not throwing
+
+    if key.Equals Key.CursorLeft && canShake then
+      key.Handled <- true
+
+      if animating then
+        shakeOnce DiceArt.Left
+      else
+        beginShake DiceArt.Left
+    elif key.Equals Key.CursorRight && canShake then
+      key.Handled <- true
+
+      if animating then
+        shakeOnce DiceArt.Right
+      else
+        beginShake DiceArt.Right
+    elif key.Equals Key.Esc && animating && not throwing then
+      key.Handled <- true
+      cancelShake ()
+
   diceList.KeyDown.Add handleSpace
+  diceList.KeyDown.Add handleRollKeys
+  rollButton.KeyDown.Add handleRollKeys
+  frame.KeyDown.Add handleRollKeys
 
   frame.Add status |> ignore
   frame.Add p1Card |> ignore
@@ -436,6 +580,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   frame.Add categoryList |> ignore
 
   frame.Add botLog |> ignore
+  frame.Add animStage |> ignore
   frame.Add rollButton |> ignore
   frame.Add backButton |> ignore
 

@@ -104,13 +104,11 @@ type ScorecardTests() =
   [<TestMethod>]
   member _.``Record stores the computed score``() =
     let sc = Scorecard.empty |> Scorecard.record Aces [ 1; 1; 3; 5; 6 ]
-    Assert.IsTrue(sc.IsSome)
     Assert.AreEqual<int option>(Some 2, Scorecard.categoryScore Aces sc.Value)
 
   [<TestMethod>]
   member _.``Record can store zero for non-matching dice``() =
     let sc = Scorecard.empty |> Scorecard.record Yacht [ 1; 2; 3; 4; 5 ]
-    Assert.IsTrue(sc.IsSome)
     Assert.AreEqual<int option>(Some 0, Scorecard.categoryScore Yacht sc.Value)
     Assert.IsTrue(Scorecard.isFilled Yacht sc.Value)
 

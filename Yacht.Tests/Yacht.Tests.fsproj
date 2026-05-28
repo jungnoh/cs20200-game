@@ -16,6 +16,7 @@
     <Compile Include="ScoringTests.fs" />
     <Compile Include="GameStateTests.fs" />
     <Compile Include="SceneTests.fs" />
+    <Compile Include="DiceArtTests.fs" />
     <Compile Include="BotTests.fs" />
     <Compile Include="ScorecardFormatTests.fs" />
     <Compile Include="GameViewTests.fs" />

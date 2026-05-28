@@ -71,3 +71,22 @@ type GameViewFocusTargetTests() =
   [<TestMethod>]
   member _.``Locked controls fall back to back button``() =
     Assert.AreEqual<FocusTarget>(BackButton, initial |> controlState true |> preferredFocusTarget)
+
+[<TestClass>]
+type GameViewShakeFrameTests() =
+
+  [<TestMethod>]
+  member _.``Kept positions keep their face, rolled positions use the roller``() =
+    let roller () = 4
+    let frame = shakeFrame roller [ true; false; true; false; false ] [ 6; 1; 5; 2; 3 ]
+    Assert.AreEqual<int list>([ 6; 4; 5; 4; 4 ], frame)
+
+  [<TestMethod>]
+  member _.``Frame always has five dice in 1..6``() =
+    let rng = System.Random 42
+
+    let frame =
+      shakeFrame (fun () -> rng.Next(1, 7)) (List.replicate 5 false) (List.replicate 5 0)
+
+    Assert.AreEqual<int>(5, List.length frame)
+    Assert.IsTrue(frame |> List.forall (fun d -> d >= 1 && d <= 6))
