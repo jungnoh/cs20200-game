@@ -69,8 +69,8 @@ type GameViewFocusTargetTests() =
     Assert.AreEqual<FocusTarget>(CategoryList, state |> controlState false |> preferredFocusTarget)
 
   [<TestMethod>]
-  member _.``Locked controls fall back to back button``() =
-    Assert.AreEqual<FocusTarget>(BackButton, initial |> controlState true |> preferredFocusTarget)
+  member _.``Locked controls fall back to category selector``() =
+    Assert.AreEqual<FocusTarget>(CategoryList, initial |> controlState true |> preferredFocusTarget)
 
 [<TestClass>]
 type GameViewShakeFrameTests() =

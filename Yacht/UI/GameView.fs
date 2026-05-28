@@ -27,7 +27,6 @@ type FocusTarget =
   | RollButton
   | DiceList
   | CategoryList
-  | BackButton
 
 let private scorecardWidth = 25
 let private categorySelectorWidth = 18
@@ -56,10 +55,8 @@ let preferredFocusTarget (controls: GameControlsState) : FocusTarget =
     DiceList
   elif controls.CanRoll then
     RollButton
-  elif controls.CanRecordCategory then
-    CategoryList
   else
-    BackButton
+    CategoryList
 
 let shakeFrame (roller: unit -> int) (keepMask: bool list) (currentDice: int list) : int list =
   List.init 5 (fun i ->
@@ -123,7 +120,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   let mutable keepMask = List.replicate 5 false
   let mutable categoryChoices: Category list = allCategories
   let mutable controlsLocked = false
-  let mutable cancelled = false
   let mutable animating = false
   let mutable throwing = false
   let mutable animFaces = List.replicate 5 0
@@ -208,11 +204,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   animStage.Visible <- false
   animStage.CanFocus <- false
 
-  let backButton = new Button()
-  backButton.Text <- "Back"
-  backButton.X <- Pos.AnchorEnd 8
-  backButton.Y <- Pos.AnchorEnd 2
-
   let scorecardRows (label: Label) =
     if label.Frame.Height > 0 then
       label.Frame.Height
@@ -228,7 +219,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     | RollButton -> rollButton.SetFocus() |> ignore
     | DiceList -> diceList.SetFocus() |> ignore
     | CategoryList -> categoryList.SetFocus() |> ignore
-    | BackButton -> backButton.SetFocus() |> ignore
 
   let isInactiveFocus (view: View) =
     view.HasFocus && (not view.Enabled || not view.CanFocus)
@@ -333,9 +323,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     Application.AddTimeout(
       TimeSpan.FromSeconds 1.0,
       fun () ->
-        if not cancelled then
-          runOneStep difficulty
-
+        runOneStep difficulty
         false
     )
     |> ignore
@@ -440,9 +428,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       Application.AddTimeout(
         TimeSpan.FromMilliseconds 350.0,
         fun () ->
-          if not cancelled then
-            finishThrow ()
-
+          finishThrow ()
           false
       )
       |> ignore
@@ -455,9 +441,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       Application.AddTimeout(
         TimeSpan.FromMilliseconds 80.0,
         fun () ->
-          if not cancelled then
-            stepThrow (frameIdx + 1) finalFaces
-
+          stepThrow (frameIdx + 1) finalFaces
           false
       )
       |> ignore
@@ -537,10 +521,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     args.Handled <- true
     doRecord ())
 
-  backButton.Accepting.Add(fun _ ->
-    cancelled <- true
-    dispatch BackToMenu)
-
   let handleSpace (key: Key) =
     if key.Equals Key.Space && not animating then
       key.Handled <- true
@@ -582,7 +562,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   frame.Add botLog |> ignore
   frame.Add animStage |> ignore
   frame.Add rollButton |> ignore
-  frame.Add backButton |> ignore
 
   refresh ()
   frame :> View
