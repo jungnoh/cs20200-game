@@ -20,6 +20,9 @@ let private mostCommonFace (dice: int list) : int =
 
 let private keepMaskForFace (dice: int list) (face: int) : bool list = dice |> List.map (fun d -> d = face)
 
+let private randomKeepMask (random: Random) (dice: int list) : bool list =
+  dice |> List.map (fun _ -> random.Next(2) = 0)
+
 let private categoryMaxScore (category: Category) : int =
   match category with
   | Aces -> 5
@@ -38,10 +41,13 @@ let private categoryMaxScore (category: Category) : int =
 let private lowestMaxScoreUnfilled (sc: Scorecard) : Category =
   Scorecard.unfilledCategories sc |> List.minBy categoryMaxScore
 
-let private easyDecideCategory (random: Random) (sc: Scorecard) : Category =
-  let unfilled = Scorecard.unfilledCategories sc
-  let idx = random.Next(List.length unfilled)
-  unfilled[idx]
+let private easyDecideRoll (random: Random) (dice: int list) (rollsUsed: int) : BotDecision =
+  if rollsUsed >= 3 then
+    StopRolling
+  elif random.Next 2 = 0 then
+    KeepAndReroll(randomKeepMask random dice)
+  else
+    StopRolling
 
 let private intermediateDecideRoll (dice: int list) (rollsUsed: int) : BotDecision =
   if rollsUsed >= 3 then
@@ -50,7 +56,7 @@ let private intermediateDecideRoll (dice: int list) (rollsUsed: int) : BotDecisi
     let face = mostCommonFace dice
     KeepAndReroll(keepMaskForFace dice face)
 
-let private intermediateDecideCategory (dice: int list) (sc: Scorecard) : Category =
+let private greedyDecideCategory (dice: int list) (sc: Scorecard) : Category =
   let applicable = Scorecard.applicableCategories dice sc
 
   match applicable with
@@ -134,14 +140,14 @@ let decideRoll
   (sc: Scorecard)
   : BotDecision =
   match difficulty with
-  | Easy -> StopRolling
+  | Easy -> easyDecideRoll random dice rollsUsed
   | Intermediate -> intermediateDecideRoll dice rollsUsed
   | Hard -> hardDecideRoll random dice rollsUsed sc
 
 let decideCategory (difficulty: Difficulty) (random: Random) (dice: int list) (sc: Scorecard) : Category =
   match difficulty with
-  | Easy -> easyDecideCategory random sc
-  | Intermediate -> intermediateDecideCategory dice sc
+  | Easy -> greedyDecideCategory dice sc
+  | Intermediate -> greedyDecideCategory dice sc
   | Hard -> hardDecideCategory dice sc
 
 let takeTurn
