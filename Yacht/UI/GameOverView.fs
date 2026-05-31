@@ -21,10 +21,13 @@ let create (state: GameState) (slotLabels: (string * string) option) (dispatch: 
   header.Y <- 0
   header.Width <- Dim.Fill 2
 
+  let winsText name =
+    if name = "You" then sprintf "%s win" name else sprintf "%s wins" name
+
   let outcomeText =
     match outcome state with
-    | Player1Wins -> sprintf "%s wins" p1Name
-    | Player2Wins -> sprintf "%s wins" p2Name
+    | Player1Wins -> winsText p1Name
+    | Player2Wins -> winsText p2Name
     | Tie -> "Tie"
     | InProgress -> "In progress"
 

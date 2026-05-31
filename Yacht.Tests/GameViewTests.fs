@@ -49,8 +49,8 @@ type GameViewControlStateTests() =
 type GameViewFocusTargetTests() =
 
   [<TestMethod>]
-  member _.``Initial turn prefers roll button``() =
-    Assert.AreEqual<FocusTarget>(RollButton, initial |> controlState false |> preferredFocusTarget)
+  member _.``Initial turn prefers dice list``() =
+    Assert.AreEqual<FocusTarget>(DiceList, initial |> controlState false |> preferredFocusTarget)
 
   [<TestMethod>]
   member _.``Reroll window prefers dice list``() =

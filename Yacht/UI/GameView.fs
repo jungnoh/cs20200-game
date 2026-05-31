@@ -24,7 +24,6 @@ type GameControlsState =
     CanRecordCategory: bool }
 
 type FocusTarget =
-  | RollButton
   | DiceList
   | CategoryList
 
@@ -51,10 +50,8 @@ let controlState (controlsLocked: bool) (state: GameState) : GameControlsState =
 let preferredFocusTarget (controls: GameControlsState) : FocusTarget =
   if controls.CanRecordCategory && not controls.CanRoll then
     CategoryList
-  elif controls.CanChooseDice then
+  elif controls.CanChooseDice || controls.CanRoll then
     DiceList
-  elif controls.CanRoll then
-    RollButton
   else
     CategoryList
 
@@ -182,11 +179,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   diceList.Height <- 7
   diceList.SetSource diceItems
 
-  let rollButton = new Button()
-  rollButton.Text <- "Roll (Enter)"
-  rollButton.X <- Pos.Right categoryList + Pos.op_Implicit 1
-  rollButton.Y <- Pos.AnchorEnd 2
-
   let botLogItems = ObservableCollection<string>()
   let botLog = new ListView()
   botLog.X <- Pos.Right categoryList + Pos.op_Implicit 1
@@ -204,6 +196,13 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   animStage.Visible <- false
   animStage.CanFocus <- false
 
+  let throwHint = new Label()
+  throwHint.Text <- "Press enter to throw"
+  throwHint.X <- Pos.Right categoryList + Pos.op_Implicit 1
+  throwHint.Y <- Pos.AnchorEnd 2
+  throwHint.Visible <- false
+  throwHint.CanFocus <- false
+
   let scorecardRows (label: Label) =
     if label.Frame.Height > 0 then
       label.Frame.Height
@@ -216,7 +215,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
 
   let focusTarget target =
     match target with
-    | RollButton -> rollButton.SetFocus() |> ignore
     | DiceList -> diceList.SetFocus() |> ignore
     | CategoryList -> categoryList.SetFocus() |> ignore
 
@@ -225,15 +223,9 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
 
   let refreshControlState () =
     let controls = controlState controlsLocked state
-    rollButton.Enabled <- controls.CanRoll || animating
-    diceList |> setViewActive controls.CanChooseDice
     categoryList |> setViewActive (controls.CanRecordCategory && not animating)
 
-    if
-      isInactiveFocus rollButton
-      || isInactiveFocus diceList
-      || isInactiveFocus categoryList
-    then
+    if isInactiveFocus categoryList then
       focusTarget (preferredFocusTarget controls)
 
   let refresh () =
@@ -245,10 +237,19 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
           "Shake! ← / → to roll, Enter to throw, Esc to cancel."
 
       status.Text <- hint
-      rollButton.Text <- "Throw (Enter)"
     else
       status.Text <- statusFor mode state
-      rollButton.Text <- "Roll (Enter)"
+
+    let controls = controlState controlsLocked state
+
+    if controlsLocked then
+      throwHint.Text <- "Bot is playing"
+      throwHint.Visible <- true
+    elif controls.CanRoll || (animating && not throwing) then
+      throwHint.Text <- "Press enter to throw"
+      throwHint.Visible <- true
+    else
+      throwHint.Visible <- false
 
     p1Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p1Label) state.Player1
     p2Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p2Label) state.Player2
@@ -259,10 +260,8 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     if animating then
       animStage.Text <- DiceArt.renderCup animFaces keepMask animTilt animLabel
       animStage.Visible <- true
-      diceList.Visible <- false
     else
       animStage.Visible <- false
-      diceList.Visible <- true
 
       let prevDieIdx =
         if diceList.SelectedItem.HasValue then
@@ -398,7 +397,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       animTilt <- tilt
       animLabel <- "shake"
       animFaces <- shakeFrame roller keepMask (currentDiceOrPlaceholder ())
-      rollButton.SetFocus() |> ignore
+      diceList.SetFocus() |> ignore
       refresh ()
 
   let shakeOnce (tilt: DiceArt.Tilt) =
@@ -417,6 +416,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     animating <- false
     throwing <- false
     refresh ()
+    controlState controlsLocked state |> preferredFocusTarget |> focusTarget
 
   let rec stepThrow (frameIdx: int) (finalFaces: int list) =
     if frameIdx >= 6 then
@@ -511,8 +511,6 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
             | _ -> ()
         | Error error -> status.Text <- string error
 
-  rollButton.Accepting.Add(fun _ -> doRoll ())
-
   diceList.Accepting.Add(fun args ->
     args.Handled <- true
     doRoll ())
@@ -527,30 +525,19 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       doToggleKeep ()
 
   let handleRollKeys (key: Key) =
-    let controls = controlState controlsLocked state
-    let canShake = (animating || controls.CanRoll) && not throwing
-
-    if key.Equals Key.CursorLeft && canShake then
-      key.Handled <- true
-
-      if animating then
+    if animating && not throwing then
+      if key.Equals Key.CursorLeft then
+        key.Handled <- true
         shakeOnce DiceArt.Left
-      else
-        beginShake DiceArt.Left
-    elif key.Equals Key.CursorRight && canShake then
-      key.Handled <- true
-
-      if animating then
+      elif key.Equals Key.CursorRight then
+        key.Handled <- true
         shakeOnce DiceArt.Right
-      else
-        beginShake DiceArt.Right
-    elif key.Equals Key.Esc && animating && not throwing then
-      key.Handled <- true
-      cancelShake ()
+      elif key.Equals Key.Esc then
+        key.Handled <- true
+        cancelShake ()
 
   diceList.KeyDown.Add handleSpace
   diceList.KeyDown.Add handleRollKeys
-  rollButton.KeyDown.Add handleRollKeys
   frame.KeyDown.Add handleRollKeys
 
   frame.Add status |> ignore
@@ -561,7 +548,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
 
   frame.Add botLog |> ignore
   frame.Add animStage |> ignore
-  frame.Add rollButton |> ignore
+  frame.Add throwHint |> ignore
 
   refresh ()
   frame :> View
