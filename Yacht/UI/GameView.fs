@@ -5,6 +5,7 @@ module Yacht.UI.GameView
 open System
 open System.Collections.ObjectModel
 open Terminal.Gui.App
+open Terminal.Gui.Drawing
 open Terminal.Gui.Input
 open Terminal.Gui.ViewBase
 open Terminal.Gui.Views
@@ -28,8 +29,7 @@ type FocusTarget =
   | CategoryList
 
 let private scorecardWidth = 25
-let private categorySelectorWidth = 18
-let private fullScorecardRows = 17
+let private categorySelectorWidth = 20
 
 let controlState (controlsLocked: bool) (state: GameState) : GameControlsState =
   if controlsLocked then
@@ -135,19 +135,54 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   status.Y <- 0
   status.Width <- Dim.Fill 2
 
+  let boldScheme () =
+    let mutable fg = Color.None
+    let mutable bg = Color.None
+    let mutable style = TextStyle.Bold
+    Scheme(Attribute(&fg, &bg, &style))
+
+  let addScorecardLabels (card: FrameView) =
+    let upper = new Label()
+    upper.X <- 1
+    upper.Y <- 0
+    upper.Width <- Dim.Fill 1
+    upper.CanFocus <- false
+
+    let bonus = new Label()
+    bonus.X <- 1
+    bonus.Y <- Pos.Bottom upper
+    bonus.Width <- Dim.Fill 1
+    bonus.CanFocus <- false
+    bonus.SetScheme(boldScheme ()) |> ignore
+
+    let lower = new Label()
+    lower.X <- 1
+    lower.Y <- Pos.Bottom bonus
+    lower.Width <- Dim.Fill 1
+    lower.CanFocus <- false
+
+    let total = new Label()
+    total.X <- 1
+    total.Y <- Pos.Bottom lower
+    total.Width <- Dim.Fill 1
+    total.CanFocus <- false
+    total.SetScheme(boldScheme ()) |> ignore
+
+    card.Add upper |> ignore
+    card.Add bonus |> ignore
+    card.Add lower |> ignore
+    card.Add total |> ignore
+    upper, bonus, lower, total
+
   let p1Card = new FrameView()
   p1Card.Title <- "Player 1"
   p1Card.X <- 1
   p1Card.Y <- 2
   p1Card.Width <- Dim.Absolute scorecardWidth
   p1Card.Height <- Dim.Fill 3
+  p1Card.CanFocus <- false
 
-  let p1Label = new Label()
-  p1Label.X <- 1
-  p1Label.Y <- 0
-  p1Label.Width <- Dim.Fill 1
-  p1Label.Height <- Dim.Fill 1
-  p1Card.Add p1Label |> ignore
+  let p1Upper, p1Bonus, p1Lower, p1Total = addScorecardLabels p1Card
 
   let p2Card = new FrameView()
   p2Card.Title <- "Player 2"
@@ -155,13 +190,9 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   p2Card.Y <- 2
   p2Card.Width <- Dim.Absolute scorecardWidth
   p2Card.Height <- Dim.Fill 3
+  p2Card.CanFocus <- false
 
-  let p2Label = new Label()
-  p2Label.X <- 1
-  p2Label.Y <- 0
-  p2Label.Width <- Dim.Fill 1
-  p2Label.Height <- Dim.Fill 1
-  p2Card.Add p2Label |> ignore
+  let p2Upper, p2Bonus, p2Lower, p2Total = addScorecardLabels p2Card
 
   let diceItems = ObservableCollection<string>()
   let diceList = new ListView()
@@ -202,12 +233,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   throwHint.Y <- Pos.AnchorEnd 2
   throwHint.Visible <- false
   throwHint.CanFocus <- false
-
-  let scorecardRows (label: Label) =
-    if label.Frame.Height > 0 then
-      label.Frame.Height
-    else
-      fullScorecardRows
+  throwHint.SetScheme(boldScheme ()) |> ignore
 
   let setViewActive active (view: View) =
     view.Enabled <- active
@@ -220,6 +246,11 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
 
   let isInactiveFocus (view: View) =
     view.HasFocus && (not view.Enabled || not view.CanFocus)
+
+  let allDiceKept () =
+    match state.Phase with
+    | Rolled _ -> List.length keepMask = 5 && List.forall id keepMask
+    | _ -> false
 
   let refreshControlState () =
     let controls = controlState controlsLocked state
@@ -245,14 +276,20 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     if controlsLocked then
       throwHint.Text <- "Bot is playing"
       throwHint.Visible <- true
-    elif controls.CanRoll || (animating && not throwing) then
+    elif (controls.CanRoll && not (allDiceKept ())) || (animating && not throwing) then
       throwHint.Text <- "Press enter to throw"
       throwHint.Visible <- true
     else
       throwHint.Visible <- false
 
-    p1Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p1Label) state.Player1
-    p2Label.Text <- ScorecardFormat.formatForHeight (scorecardRows p2Label) state.Player2
+    p1Upper.Text <- ScorecardFormat.upperBlock state.Player1
+    p1Bonus.Text <- ScorecardFormat.bonusLine state.Player1
+    p1Lower.Text <- ScorecardFormat.lowerBlock state.Player1
+    p1Total.Text <- ScorecardFormat.totalLine state.Player1
+    p2Upper.Text <- ScorecardFormat.upperBlock state.Player2
+    p2Bonus.Text <- ScorecardFormat.bonusLine state.Player2
+    p2Lower.Text <- ScorecardFormat.lowerBlock state.Player2
+    p2Total.Text <- ScorecardFormat.totalLine state.Player2
 
     p1Card.Title <- cardTitle mode Player1 state.Current
     p2Card.Title <- cardTitle mode Player2 state.Current
@@ -288,26 +325,39 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     categoryChoices <- Scorecard.unfilledCategories (currentScorecard state)
     categoryItems.Clear()
 
+    let rolledDice = diceIn state |> Option.map fst
+
+    let scoreOf category =
+      rolledDice |> Option.map (scoreDice category) |> Option.defaultValue 0
+
+    let bestScore =
+      match rolledDice with
+      | Some _ -> categoryChoices |> List.map scoreOf |> List.fold max 0
+      | None -> 0
+
+    let isBest category = bestScore > 0 && scoreOf category = bestScore
+
     categoryChoices
     |> List.iter (fun category ->
       let value =
-        match diceIn state with
+        match rolledDice with
         | None -> "-"
-        | Some(dice, _) -> string (scoreDice category dice)
+        | Some dice -> string (scoreDice category dice)
 
-      categoryItems.Add(sprintf "%-14s %2s" (string category) value))
+      let marker = if isBest category then "*" else " "
+      categoryItems.Add(sprintf "%-14s %2s %s" (string category) value marker))
 
-    if categoryItems.Count > 0 && not categoryList.SelectedItem.HasValue then
-      categoryList.SelectedItem <- Nullable 0
+    if categoryItems.Count > 0 then
+      let bestIdx =
+        categoryChoices |> List.tryFindIndex isBest |> Option.defaultValue 0
+
+      categoryList.SelectedItem <- Nullable bestIdx
 
     refreshControlState ()
-
-  p1Label.FrameChanged.Add(fun _ -> refresh ())
-  p2Label.FrameChanged.Add(fun _ -> refresh ())
 
   let lockUi locked =
     controlsLocked <- locked
-    refreshControlState ()
+    refresh ()
 
     if not locked then
       controlState controlsLocked state |> preferredFocusTarget |> focusTarget
@@ -391,7 +441,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
   let beginShake (tilt: DiceArt.Tilt) =
     let controls = controlState controlsLocked state
 
-    if controls.CanRoll && not animating then
+    if controls.CanRoll && not animating && not (allDiceKept ()) then
       animating <- true
       throwing <- false
       animTilt <- tilt
@@ -418,8 +468,9 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
     refresh ()
     controlState controlsLocked state |> preferredFocusTarget |> focusTarget
 
-  let rec stepThrow (frameIdx: int) (finalFaces: int list) =
+  let rec stepThrow (frameIdx: int) (finalState: GameState) (finalFaces: int list) =
     if frameIdx >= 6 then
+      state <- finalState
       animFaces <- finalFaces
       animTilt <- DiceArt.Center
       animLabel <- "landed!"
@@ -441,7 +492,7 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
       Application.AddTimeout(
         TimeSpan.FromMilliseconds 80.0,
         fun () ->
-          stepThrow (frameIdx + 1) finalFaces
+          stepThrow (frameIdx + 1) finalState finalFaces
           false
       )
       |> ignore
@@ -460,9 +511,8 @@ let create (mode: PlayerMode) (title: string) (dispatch: Msg -> unit) : View =
           | Rolled(dice, _) -> dice
           | AwaitingFirstRoll -> animFaces
 
-        state <- next
         throwing <- true
-        stepThrow 0 finalFaces
+        stepThrow 0 next finalFaces
       | Error error ->
         animating <- false
         refresh ()

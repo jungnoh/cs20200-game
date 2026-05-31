@@ -36,6 +36,22 @@ let private scorecardRows (sc: Scorecard) =
 let format (sc: Scorecard) : string =
   String.concat "\n" (scorecardRows sc)
 
+let private upperLines (sc: Scorecard) =
+  upperCategories |> List.map (fun c -> sprintf "%-16s %4s" (string c) (cellValue sc c))
+
+let private lowerLines (sc: Scorecard) =
+  allCategories
+  |> List.filter (fun c -> not (List.contains c upperCategories))
+  |> List.map (fun c -> sprintf "%-16s %4s" (string c) (cellValue sc c))
+
+let upperBlock (sc: Scorecard) : string = String.concat "\n" (upperLines sc @ [ divider ])
+
+let bonusLine (sc: Scorecard) : string = bonusRow sc
+
+let lowerBlock (sc: Scorecard) : string = String.concat "\n" (divider :: lowerLines sc @ [ divider ])
+
+let totalLine (sc: Scorecard) : string = totalRow sc
+
 let formatForHeight (maxRows: int) (sc: Scorecard) : string =
   let rows = scorecardRows sc
 

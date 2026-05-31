@@ -47,10 +47,24 @@ let run () : unit =
         | Exiting -> Application.RequestStop root
         | _ -> Application.Invoke(System.Action render)
 
+    let isInGame () =
+      match currentScene with
+      | OnePlayer _
+      | TwoPlayer -> true
+      | _ -> false
+
     Application.KeyDown.Add(fun key ->
       if key.Equals Key.C.WithCtrl then
         key.Handled <- true
-        Application.RequestStop root)
+        Application.RequestStop root
+      elif not key.Handled && key.Equals Key.Esc && isInGame () then
+        key.Handled <- true
+
+        let answer =
+          MessageBox.Query(Application.Instance, "Exit", "Exit the game?", "Cancel", "Exit")
+
+        if answer.HasValue && answer.Value = 1 then
+          Application.RequestStop root)
 
     render ()
     Application.Run(root, null)

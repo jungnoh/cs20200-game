@@ -1,6 +1,7 @@
 module Yacht.UI.GameOverView
 
 open Terminal.Gui.App
+open Terminal.Gui.Drawing
 open Terminal.Gui.ViewBase
 open Terminal.Gui.Views
 open Yacht.GameState
@@ -40,20 +41,56 @@ let create (state: GameState) (slotLabels: (string * string) option) (dispatch: 
       p2Name
       (Scorecard.total state.Player2)
 
+  let boldScheme () =
+    let mutable fg = Color.None
+    let mutable bg = Color.None
+    let mutable style = TextStyle.Bold
+    Scheme(Attribute(&fg, &bg, &style))
+
+  let addScorecardLabels (card: FrameView) (sc: Scorecard) =
+    let upper = new Label()
+    upper.X <- 1
+    upper.Y <- 0
+    upper.Width <- Dim.Fill 1
+    upper.CanFocus <- false
+    upper.Text <- ScorecardFormat.upperBlock sc
+
+    let bonus = new Label()
+    bonus.X <- 1
+    bonus.Y <- Pos.Bottom upper
+    bonus.Width <- Dim.Fill 1
+    bonus.CanFocus <- false
+    bonus.Text <- ScorecardFormat.bonusLine sc
+    bonus.SetScheme(boldScheme ()) |> ignore
+
+    let lower = new Label()
+    lower.X <- 1
+    lower.Y <- Pos.Bottom bonus
+    lower.Width <- Dim.Fill 1
+    lower.CanFocus <- false
+    lower.Text <- ScorecardFormat.lowerBlock sc
+
+    let total = new Label()
+    total.X <- 1
+    total.Y <- Pos.Bottom lower
+    total.Width <- Dim.Fill 1
+    total.CanFocus <- false
+    total.Text <- ScorecardFormat.totalLine sc
+    total.SetScheme(boldScheme ()) |> ignore
+
+    card.Add upper |> ignore
+    card.Add bonus |> ignore
+    card.Add lower |> ignore
+    card.Add total |> ignore
+
   let p1Card = new FrameView()
   p1Card.Title <- p1Name
   p1Card.X <- 1
   p1Card.Y <- 2
   p1Card.Width <- Dim.Percent 48
   p1Card.Height <- Dim.Fill 3
-
-  let p1Label = new Label()
-  p1Label.X <- 1
-  p1Label.Y <- 0
-  p1Label.Width <- Dim.Fill 1
-  p1Label.Height <- Dim.Fill 1
-  p1Label.Text <- ScorecardFormat.format state.Player1
-  p1Card.Add p1Label |> ignore
+  p1Card.CanFocus <- false
+  addScorecardLabels p1Card state.Player1
 
   let p2Card = new FrameView()
   p2Card.Title <- p2Name
@@ -61,14 +98,8 @@ let create (state: GameState) (slotLabels: (string * string) option) (dispatch: 
   p2Card.Y <- 2
   p2Card.Width <- Dim.Percent 48
   p2Card.Height <- Dim.Fill 3
-
-  let p2Label = new Label()
-  p2Label.X <- 1
-  p2Label.Y <- 0
-  p2Label.Width <- Dim.Fill 1
-  p2Label.Height <- Dim.Fill 1
-  p2Label.Text <- ScorecardFormat.format state.Player2
-  p2Card.Add p2Label |> ignore
+  p2Card.CanFocus <- false
+  addScorecardLabels p2Card state.Player2
 
   let backButton = new Button()
   backButton.Text <- "Back to Menu"
